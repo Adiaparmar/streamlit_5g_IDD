@@ -106,37 +106,80 @@ def load_kpi_names():
 PLOT_LAYOUT = dict(
     paper_bgcolor="#0f1117",
     plot_bgcolor="#131921",
-    font=dict(family="Inter", color="#94a3b8", size=11),
-    margin=dict(l=40, r=20, t=40, b=40),
+    font=dict(family="Inter, -apple-system, sans-serif", color="#94a3b8", size=11),
 )
 
+CYBER_PALETTE = [
+    "#38bdf8",  # Sky Blue / Cyan
+    "#f43f5e",  # Rose
+    "#fbbf24",  # Amber
+    "#a855f7",  # Purple
+    "#34d399",  # Emerald
+    "#818cf8",  # Indigo
+]
 
-def kpi_timeseries_fig(kpi_z: np.ndarray, kpi_names, top_n: int = 8):
-    """Multi-line time series of z-scored KPI values."""
+
+def kpi_timeseries_fig(kpi_z: np.ndarray, kpi_names, top_n: int = 6):
+    """Multi-line time series of z-scored KPI values with clean layout."""
     z_means = np.abs(kpi_z.mean(axis=0))
     top_idx = np.argsort(z_means)[::-1][:top_n]
 
     fig = go.Figure()
-    colors = px.colors.qualitative.Set2
     for ci, i in enumerate(top_idx):
+        color = CYBER_PALETTE[ci % len(CYBER_PALETTE)]
         fig.add_trace(go.Scatter(
             x=list(range(24)),
             y=kpi_z[:, i].tolist(),
             name=kpi_names[i],
             mode="lines",
-            line=dict(width=2, color=colors[ci % len(colors)]),
+            line=dict(width=2.2, color=color, shape="spline", smoothing=0.8),
+            hovertemplate=f"<b>{kpi_names[i]}</b><br>t=%{{x}}<br>z=%{{y:+.2f}}σ<extra></extra>",
         ))
-    fig.add_hline(y=0, line_dash="dash", line_color="#2d3748", line_width=1)
-    fig.add_hline(y=2, line_dash="dot", line_color="#ef4444", line_width=1,
-                  annotation_text="2σ", annotation_position="right")
-    fig.add_hline(y=-2, line_dash="dot", line_color="#ef4444", line_width=1)
+
+    # Reference lines
+    fig.add_hline(y=0, line_dash="dash", line_color="#334155", line_width=1)
+    fig.add_hline(y=2, line_dash="dot", line_color="#ef4444", line_width=1.2,
+                  annotation_text="+2σ anomaly", annotation_position="top right",
+                  annotation_font=dict(size=9, color="#ef4444"))
+    fig.add_hline(y=-2, line_dash="dot", line_color="#ef4444", line_width=1.2,
+                  annotation_text="-2σ anomaly", annotation_position="bottom right",
+                  annotation_font=dict(size=9, color="#ef4444"))
+
     fig.update_layout(
         **PLOT_LAYOUT,
-        title="KPI Time Series (z-scored, 24 timestamps)",
-        xaxis_title="Timestamp",
-        yaxis_title="z-score",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, bgcolor="rgba(0,0,0,0)"),
-        height=320,
+        title=dict(
+            text="KPI Time Series (Top Anomalous KPIs, z-scored)",
+            font=dict(size=13, color="#f1f5f9", family="Inter"),
+            x=0.01, y=0.97, xanchor="left",
+        ),
+        xaxis=dict(
+            title=dict(text="Timestamp (24-step window)", font=dict(size=10, color="#64748b")),
+            gridcolor="#1e293b",
+            showgrid=True,
+            zeroline=False,
+            tickmode="linear",
+            tick0=0,
+            dtick=4,
+        ),
+        yaxis=dict(
+            title=dict(text="z-score (std deviations)", font=dict(size=10, color="#64748b")),
+            gridcolor="#1e293b",
+            showgrid=True,
+            zeroline=False,
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.22,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=10, color="#cbd5e1"),
+            bgcolor="rgba(19, 25, 33, 0.7)",
+            bordercolor="#2d3748",
+            borderwidth=1,
+        ),
+        margin=dict(l=45, r=25, t=45, b=60),
+        height=360,
     )
     return fig
 
@@ -149,82 +192,133 @@ def radar_fig(z_scores: dict):
     names.append(names[0])
     vals.append(vals[0])
 
+    max_val = max(vals) if vals else 1.0
+    r_max = max(max_val * 1.15, 2.5)
+
     fig = go.Figure(go.Scatterpolar(
         r=vals, theta=names,
         fill="toself",
-        fillcolor="rgba(59,130,246,0.15)",
-        line=dict(color="#3b82f6", width=2),
+        fillcolor="rgba(14, 165, 233, 0.20)",
+        line=dict(color="#0ea5e9", width=2),
+        mode="lines+markers",
+        marker=dict(size=4, color="#38bdf8"),
         name="Anomaly magnitude",
+        hovertemplate="<b>%{theta}</b><br>|z| = %{r:.2f}σ<extra></extra>",
     ))
     fig.update_layout(
         **PLOT_LAYOUT,
         polar=dict(
             bgcolor="#131921",
-            radialaxis=dict(visible=True, range=[0, max(vals) * 1.2 + 0.5],
-                            gridcolor="#2d3748", linecolor="#2d3748",
-                            tickfont=dict(size=9)),
-            angularaxis=dict(gridcolor="#2d3748", linecolor="#2d3748",
-                             tickfont=dict(size=9)),
+            radialaxis=dict(
+                visible=True,
+                range=[0, r_max],
+                showticklabels=False,
+                gridcolor="#1e293b",
+                linecolor="#334155",
+            ),
+            angularaxis=dict(
+                gridcolor="#1e293b",
+                linecolor="#334155",
+                tickfont=dict(size=9.5, color="#cbd5e1"),
+                direction="clockwise",
+            ),
         ),
         showlegend=False,
-        title="KPI Anomaly Radar",
+        title=dict(
+            text="KPI Anomaly Radar Profile",
+            font=dict(size=13, color="#f1f5f9", family="Inter"),
+            x=0.5, y=0.97, xanchor="center",
+        ),
+        margin=dict(l=65, r=65, t=55, b=45),
         height=360,
     )
     return fig
 
 
 def prediction_bar_fig(scores: dict, pred_key: str, title: str):
-    """Horizontal confidence bars."""
+    """Horizontal confidence bars with generous label margin and glow highlight."""
     total = sum(scores.values()) + 1e-9
     labels = list(scores.keys())
     values = [v / total * 100 for v in scores.values()]
-    colors = ["#3b82f6" if l == pred_key else "#2d3748" for l in labels]
+
+    bar_colors = ["#3b82f6" if l == pred_key else "#1e2433" for l in labels]
+    border_colors = ["#60a5fa" if l == pred_key else "#334155" for l in labels]
 
     fig = go.Figure(go.Bar(
         x=values, y=labels, orientation="h",
-        marker_color=colors,
+        marker=dict(
+            color=bar_colors,
+            line=dict(color=border_colors, width=1.5),
+        ),
         text=[f"{v:.1f}%" for v in values],
         textposition="outside",
-        textfont=dict(size=10, color="#94a3b8"),
+        textfont=dict(size=10, color="#cbd5e1"),
+        hovertemplate="<b>%{y}</b>: %{x:.1f}%<extra></extra>",
     ))
     fig.update_layout(
         **PLOT_LAYOUT,
-        title=title,
-        xaxis=dict(range=[0, 115], showgrid=False, visible=False),
-        yaxis=dict(autorange="reversed"),
-        height=max(180, 40 * len(labels) + 60),
-        bargap=0.35,
+        title=dict(
+            text=title,
+            font=dict(size=13, color="#f1f5f9", family="Inter"),
+            x=0.01, y=0.97, xanchor="left",
+        ),
+        xaxis=dict(range=[0, max(values) * 1.25 + 5], showgrid=False, visible=False),
+        yaxis=dict(
+            autorange="reversed",
+            tickfont=dict(size=10.5, color="#cbd5e1"),
+            gridcolor="#1e293b",
+        ),
+        margin=dict(l=125, r=45, t=45, b=25),
+        height=max(190, 42 * len(labels) + 50),
+        bargap=0.32,
     )
     return fig
 
 
 def retrieval_fig(retrieved_labels):
-    """Bar chart of retrieved episodes colored by label."""
-    cats  = [r["category"] for r in retrieved_labels]
-    subs  = [r["subcategory"] for r in retrieved_labels]
-    sims  = [r["score"] for r in retrieved_labels]
-    idxs  = list(range(1, len(sims) + 1))
+    """Bar chart of retrieved episodes colored by category with clean annotations."""
+    cats = [r["category"] for r in retrieved_labels]
+    subs = [r["subcategory"] for r in retrieved_labels]
+    sims = [r["score"] for r in retrieved_labels]
+    idxs = list(range(1, len(sims) + 1))
 
-    color_map = {}
-    palette = px.colors.qualitative.Pastel
-    for i, c in enumerate(sorted(set(cats))):
-        color_map[c] = palette[i % len(palette)]
+    unique_cats = sorted(set(cats))
+    palette = ["#38bdf8", "#f43f5e", "#fbbf24", "#34d399", "#a855f7", "#818cf8"]
+    color_map = {c: palette[i % len(palette)] for i, c in enumerate(unique_cats)}
 
     fig = go.Figure(go.Bar(
         x=idxs, y=sims,
-        marker_color=[color_map[c] for c in cats],
+        marker=dict(
+            color=[color_map[c] for c in cats],
+            line=dict(color="rgba(255,255,255,0.15)", width=1),
+        ),
         text=subs,
-        textposition="inside",
-        textfont=dict(size=9),
+        textposition="auto",
+        textfont=dict(size=9.5, color="#ffffff"),
         customdata=cats,
-        hovertemplate="Rank %{x}<br>%{customdata} / %{text}<br>Score: %{y:.3f}<extra></extra>",
+        hovertemplate="<b>Rank #%{x}</b><br>Category: %{customdata}<br>Subcategory: %{text}<br>Similarity: %{y:.3f}<extra></extra>",
     ))
     fig.update_layout(
         **PLOT_LAYOUT,
-        title="Retrieved Historical Episodes (top-10)",
-        xaxis_title="Retrieval rank",
-        yaxis_title="Similarity score",
-        height=240,
+        title=dict(
+            text="Retrieved Historical Episodes (Top-10 Nearest Neighbors in KB)",
+            font=dict(size=13, color="#f1f5f9", family="Inter"),
+            x=0.01, y=0.97, xanchor="left",
+        ),
+        xaxis=dict(
+            title=dict(text="Retrieval Rank", font=dict(size=10, color="#64748b")),
+            tickmode="linear",
+            tick0=1,
+            dtick=1,
+            gridcolor="#1e293b",
+        ),
+        yaxis=dict(
+            title=dict(text="Cosine Similarity Score", font=dict(size=10, color="#64748b")),
+            gridcolor="#1e293b",
+            range=[min(sims) * 0.9 if sims else 0, max(sims) * 1.05 if sims else 1],
+        ),
+        margin=dict(l=50, r=25, t=50, b=45),
+        height=270,
     )
     return fig
 
@@ -531,17 +625,11 @@ if mode == "🎮 Scenario Explorer":
         </div>
         """, unsafe_allow_html=True)
 
-    # Sliders
-    st.markdown('<div class="section-header">Attack Parameters</div>',
-                unsafe_allow_html=True)
-    slider_cols = st.columns(len(scenario["sliders"]))
-    slider_vals = {}
-    for ci, (key, (label, mn, mx, default)) in enumerate(scenario["sliders"].items()):
-        slider_vals[key] = slider_cols[ci].slider(label, mn, mx, default, step=0.05)
+    st.markdown("<br>", unsafe_allow_html=True)
 
     if st.button("▶  Run Analysis", type="primary", use_container_width=True):
-        with st.spinner("Generating synthetic trace and running inference..."):
-            arr = scenario["fn"](**slider_vals)
+        with st.spinner("Loading real attack telemetry and running inference..."):
+            arr = scenario["fn"]()
             result = model.predict(arr, col_names=kpi_names)
 
         render_prediction(result, kpi_names)
@@ -604,13 +692,19 @@ elif mode == "📝 Manual Input":
     if st.session_state.manual_source != "manual":
         st.success(
             f"✅ Loaded real 24-step window: **{st.session_state.manual_source}**  "
-            "— boxes show the time-averaged mean of each KPI."
+            "— boxes show the time-averaged mean of each KPI. "
+            "(Editing any value below will switch to Custom Manual mode)."
         )
     else:
-        st.info("ℹ️ Manual mode — values will be tiled 24× as a steady-state window.")
+        st.info("ℹ️ Custom Manual mode — values will be tiled 24× as a steady-state window.")
 
     st.divider()
     st.markdown("#### 🔢 KPI Values")
+
+    def _on_manual_kpi_changed():
+        """Clear cached 24-step demo trace when user modifies any input box."""
+        st.session_state.manual_arr24 = None
+        st.session_state.manual_source = "manual"
 
     # 4-column input grid — key= lets Streamlit own the widget value
     grid = st.columns(4)
@@ -619,6 +713,7 @@ elif mode == "📝 Manual Input":
             kpi,
             format="%.4f",
             key=f"manual_in_{kpi}",   # Streamlit reads/writes state here directly
+            on_change=_on_manual_kpi_changed,
         )
 
     st.divider()
@@ -633,9 +728,8 @@ elif mode == "📝 Manual Input":
                 dtype=np.float32,
             )
             arr_24 = np.tile(arr_1d, (24, 1)).astype(np.float32)
-            st.warning(
-                "Using a tiled steady-state approximation. "
-                "For best results, use one of the Demo Auto-Fill buttons above."
+            st.caption(
+                "Using custom values (tiled 24× steady-state window)."
             )
 
         with st.spinner("Running inference..."):
@@ -743,11 +837,33 @@ elif mode == "📡 Live Monitor":
                 )
             fig.update_layout(
                 **PLOT_LAYOUT,
-                title=f"Live KPI Stream (t={t})",
-                height=300,
+                title=dict(
+                    text=f"Live KPI Stream (t={t})",
+                    font=dict(size=13, color="#f1f5f9", family="Inter"),
+                    x=0.01, y=0.97, xanchor="left",
+                ),
+                xaxis=dict(
+                    title=dict(text="Window Timeline (step)", font=dict(size=10, color="#64748b")),
+                    gridcolor="#1e293b",
+                ),
+                yaxis=dict(
+                    title=dict(text="KPI Value", font=dict(size=10, color="#64748b")),
+                    gridcolor="#1e293b",
+                ),
+                height=340,
                 showlegend=True,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02,
-                            bgcolor="rgba(0,0,0,0)"),
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.22,
+                    xanchor="center",
+                    x=0.5,
+                    font=dict(size=10, color="#cbd5e1"),
+                    bgcolor="rgba(19, 25, 33, 0.7)",
+                    bordercolor="#2d3748",
+                    borderwidth=1,
+                ),
+                margin=dict(l=45, r=25, t=45, b=60),
             )
             chart_ph.plotly_chart(fig, use_container_width=True, theme=None, key=f"live_{t}")
 
