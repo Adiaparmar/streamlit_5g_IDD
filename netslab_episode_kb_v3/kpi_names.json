@@ -1,0 +1,18 @@
+[
+  "dlBytes",
+  "dlMcs",
+  "dlBler",
+  "ulBytes",
+  "ulMcs",
+  "ulBler",
+  "ri",
+  "phr",
+  "pcmax",
+  "rsrq",
+  "sinr",
+  "rsrp",
+  "rssi",
+  "cqi",
+  "pucchSnr",
+  "puschSnr"
+]
